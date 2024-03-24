@@ -37,7 +37,7 @@ if sys.version_info < (3, 7):
 setup(
     name="data_utility.initialize",
     version="0.0.1",
-    packages=["metafspm"],
+    packages=["initialize"],
     include_package_data=True,
     author="T.Gerault, F.Rees, C.Pradal and R.Barillot",
     author_email="tristan.gerault@inrae.fr, frederic.rees@inrae.fr, romain.barillot@inrae.fr, christophe.pradal@cirad.fr",
