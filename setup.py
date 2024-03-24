@@ -38,7 +38,6 @@ setup(
     name="data_utility.initialize",
     version="0.0.1",
     packages=["metafspm"],
-    namespace_packages=['data_utility'],
     include_package_data=True,
     author="T.Gerault, F.Rees, C.Pradal and R.Barillot",
     author_email="tristan.gerault@inrae.fr, frederic.rees@inrae.fr, romain.barillot@inrae.fr, christophe.pradal@cirad.fr",
