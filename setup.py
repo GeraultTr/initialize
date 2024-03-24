@@ -1,66 +1,51 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# -*- coding: latin-1 -*-
+import sys
+from setuptools import setup
 
-# {# pkglts, pysetup.kwds
-# format setup arguments
+"""
 
-from setuptools import setup, find_packages
+    setup
+    ~~~~~
 
+    Setup script for installation.
 
-short_descr = "TODO"
-readme = open('README.md').read()
+    See README.md for installing procedure.
 
+    :copyright: Copyright 2023-2024 INRA-ECOSYS, see AUTHORS.
+    :license: CeCILL-C, see LICENSE for details.
 
-# find version number in src/openalea/core/version.py
-version = {}
-with open("initialize/version.py") as fp:
-    exec(fp.read(), version)
+    **Acknowledgments**: The research leading these results has received funding through the 
+    Investment for the Future programme managed by the Research National Agency 
+    (BreedWheat project ANR-10-BTBR-03).
 
-# find packages
-pkgs = find_packages('initialize')
+    .. seealso:: 1st article et al.
+"""
 
+"""
+    Information about this versioned file:
+        $LastChangedBy$
+        $LastChangedDate$
+        $LastChangedRevision$
+        $URL$
+        $Id$
+"""
 
-setup_kwds = dict(
-    name='data_utility.initialize',
-    version=version["__version__"],
-    description=short_descr,
-    long_description=readme,
-    author="Tristan Gérault, Christophe Pradal",
-    author_email="tristan.gerault@inrael.fr, christophe.pradal@cirad.fr",
-    url='https://github.com/GeraultTr/initialize.git',
-    license='cecill-c',
-    zip_safe=False,
+if sys.version_info < (3, 7):
+    print('ERROR: Requires at least Python 3.7 to run.')
+    sys.exit(1)
 
-    packages=pkgs,
+setup(
+    name="data_utility.initialize",
+    version="0.0.1",
+    packages=["metafspm"],
     namespace_packages=['data_utility'],
-    package_dir={'': 'initialize'},
-    setup_requires=[
-        "pytest-runner",
-        ],
-    install_requires=[
-        ],
-    tests_require=[
-        "coverage",
-        "pytest",
-        "pytest-cov",
-        "pytest-mock",
-        "sphinx",
-        ],
-    entry_points={},
-    keywords='data_utility',
-    )
-# #}
-# change setup_kwds below before the next pkglts tag
-
-# setup_kwds['setup_requires'] = ['openalea.deploy']
-# setup_kwds['share_dirs'] = {'share': 'share'}
-# setup_kwds['entry_points']["wralea"] = ["openalea.flow control = openalea.core.system", ]
-# setup_kwds['entry_points']["console_scripts"] = ["alea = openalea.core.alea:main"]
-# setup_kwds['entry_points']['openalea.core'] = [
-#             'openalea.core/openalea = openalea.core.plugin.builtin',
-#         ]
-
-# do not change things below
-# {# pkglts, pysetup.call
-setup(**setup_kwds)
-# #}
+    include_package_data=True,
+    author="T.Gerault, F.Rees, C.Pradal and R.Barillot",
+    author_email="tristan.gerault@inrae.fr, frederic.rees@inrae.fr, romain.barillot@inrae.fr, christophe.pradal@cirad.fr",
+    description="This package provides ressources for building basic simulation scenarios",
+    long_description="""TODO""",
+    license="CeCILL-C",
+    keywords="functional-structural plant model, wheat, uptake, rhizodeposition, trophic status, carbon, nitrogen, metabolism, remobilisation, source-sink relation, resource allocation",
+    url="https://github.com/GeraultTr/initialize.git",
+    download_url="https://github.com/GeraultTr/initialize.git"
+)
