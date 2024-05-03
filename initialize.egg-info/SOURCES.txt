@@ -1,0 +1,9 @@
+README.md
+setup.py
+initialize/__init__.py
+initialize/initialize.py
+initialize.egg-info/PKG-INFO
+initialize.egg-info/SOURCES.txt
+initialize.egg-info/dependency_links.txt
+initialize.egg-info/top_level.txt
+test/test_import_scenario.py
