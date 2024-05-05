@@ -6,7 +6,7 @@ import pickle
 class MakeScenarios:
 
     def from_table(file_path, which=[]):
-        instructions = read_table(file_path)
+        instructions = read_table(file_path, index_col="Input")
         input_directory = os.path.dirname(file_path)
 
         if len(which) > 0:
@@ -18,23 +18,26 @@ class MakeScenarios:
         instructions_initial_mtg_file = instructions.loc[instructions["Input_type"] == "input_mtg"]
 
         scenarios = {name: {
-            "parameters": dict(zip(instructions_parameters["Input"], instructions_parameters[name].replace({'True': True, 'False': False}))) if len(instructions_parameters) > 0 else None,
-            "input_tables": {var: read_table(os.path.join(input_directory, instructions_table_file.loc[instructions_table_file["Input"] == var][name][["t", var]]))
-                             for var in instructions_table_file["Input"]} if len(instructions_table_file) > 0 else None,
-            "input_mtg": {var: pickle.load(open(os.path.join(input_directory, instructions_initial_mtg_file.loc[instructions_initial_mtg_file["Input"] == var][name]), "rb"))
-                          for var in instructions_initial_mtg_file["Input"]} if len(instructions_initial_mtg_file) > 0 else None
+            "parameters": dict(zip(instructions_parameters.index.values, instructions_parameters[name].replace({'True': True, 'False': False}))) if len(instructions_parameters) > 0 else None,
+            "input_tables": {var: read_table(os.path.join(input_directory, str(instructions_table_file[name][var])), index_col="t")[var]
+                             for var in instructions_table_file.index.values} if len(instructions_table_file) > 0 else None,
+            "input_mtg": {var: pickle.load(open(os.path.join(input_directory, str(instructions_initial_mtg_file[name][var])), "rb"))
+                          for var in instructions_initial_mtg_file.index.values} if len(instructions_initial_mtg_file) > 0 else None
                             }
                      for name in scenario_names}
+        print(scenarios)
         return scenarios
 
 
-def read_table(file_path):
+def read_table(file_path, index_col=None):
     if file_path.lower().endswith((".csv", ".xlsx")):
         # Add more types then if necessary
         if file_path.lower().endswith(".xlsx"):
-            return pd.read_excel(file_path)
+            return pd.read_excel(file_path, index_col=index_col)
 
         elif file_path.lower().endswith(".csv"):
-            return pd.read_csv(file_path)
+            return pd.read_csv(file_path, index_col=index_col, sep=";")
+    elif file_path == 'None':
+        return None
     else:
         raise TypeError("Only tables are allowed")
