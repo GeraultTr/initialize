@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import pickle
 import itertools
+from SALib.sample import saltelli
 
 
 class MakeScenarios:
@@ -51,7 +52,7 @@ class MakeScenarios:
 
         return scenarios
 
-    def from_factorial_plan(file_path):
+    def from_factorial_plan(file_path, save_scenarios=True, N=10):
         factorial_plan = read_table(file_path, index_col="Input")
         input_directory = os.path.dirname(file_path)
         reference_dirpath = os.path.join(input_directory, "Scenarios_24_05.xlsx")
@@ -64,20 +65,21 @@ class MakeScenarios:
         SA_problem["num_vars"] = len(factors)
         SA_problem["names"] = factors
         SA_problem["bounds"] = factorial_plan[["Min", "Max"]].values.tolist()
-
-        all_combinations = list(itertools.product(*SA_problem["bounds"]))
-        scenario_names = [f"SA{i}" for i in range(len(all_combinations))]
+        
+        param_values = saltelli.sample(SA_problem, N=N, calc_second_order=True)
+        scenario_names = [f"SA{i}" for i in range(len(param_values))]
 
         # Now produce the dataframe containing all the scenarios as rows, through an edition of the reference
         SA_scenarios = reference_scenario
-        for k in range(len(all_combinations)):
+        for k in range(len(param_values)):
             edited_scenario = reference_scenario["Reference_Fischer"].to_dict()
-            for f in range(len(all_combinations[k])):
-                edited_scenario[factors[f]] = all_combinations[k][f]
+            for f in range(len(param_values[k])):
+                edited_scenario[factors[f]] = param_values[k][f]
             SA_scenarios[scenario_names[k]] = edited_scenario
 
         output_filename = os.path.join(input_directory, "Scenarios_SA.xlsx")
-        SA_scenarios.to_excel(output_filename)
+        if save_scenarios:
+            SA_scenarios.to_excel(output_filename)
 
         return SA_problem, output_filename, scenario_names
 
