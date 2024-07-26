@@ -2,8 +2,9 @@ import os
 import pandas as pd
 import numpy as np
 import pickle
-import itertools
 from SALib.sample import saltelli
+from openalea.mtg import MTG
+import xml.etree.ElementTree as ET
 
 
 class MakeScenarios:
@@ -44,7 +45,7 @@ class MakeScenarios:
             "parameters": subdict_of_parameters[name],
             "input_tables": {var: read_table(os.path.join(input_directory, str(instructions_table_file[name][var])), index_col="t")[var] 
                              for var in instructions_table_file.index.values if not pd.isna(instructions_table_file[name][var])} if len(instructions_table_file) > 0 else None,
-            "input_mtg": {var: pickle.load(open(os.path.join(input_directory, str(instructions_initial_mtg_file[name][var])), "rb")) if not pd.isna(instructions_initial_mtg_file[name][var]) 
+            "input_mtg": {var: read_mtg(os.path.join(input_directory, str(instructions_initial_mtg_file[name][var]))) if not pd.isna(instructions_initial_mtg_file[name][var]) 
                           else None for var in instructions_initial_mtg_file.index.values} if len(instructions_initial_mtg_file) > 0 else None}
                      for name in scenario_names}
 
@@ -95,3 +96,162 @@ def read_table(file_path, index_col=None):
         return None
     else:
         raise TypeError("Only tables are allowed")
+    
+
+def read_mtg(file_path):
+    """
+    General reader for MTG from native mtg file fromat or rsml xml format
+    """
+    if file_path.endswith(".pckl"):
+        with open(file_path, "rb") as f:
+            g = pickle.load(f)
+    elif file_path.endswith(".rsml"):
+        g = mtg_from_rsml(file_path)
+
+    return g
+    
+
+def mtg_from_rsml(file_path: str):
+
+    polylines, properties, functions = read_rsml(file_path)
+    # We create an empty MTG:
+    g = MTG()
+    # We define the first base element as an empty element:
+    id_segment = g.add_component(g.root, label='Segment',
+                                 x1=0,
+                                 x2=0,
+                                 y1=0,
+                                 y2=0,
+                                 z1=0,
+                                 z2=0,
+                                 radius1=0,
+                                 radius2=0,
+                                 radius=0,
+                                 length=0
+                                 )
+    base_segment = g.node(id_segment)
+
+    # We initialize an empty dictionary that will be used to register the vid of the mother elements:
+    index_pointer_in_mtg = {}
+    # We initialize the first mother element:
+    mother_element = base_segment
+
+    if len(polylines[0][0]) == 2:
+        flat_rsml = True
+    elif len(polylines[0][0]) == 3:
+        flat_rsml = False
+    else:
+        raise SyntaxError("Error in RSML file format, wrong number of coordinates")
+
+    # For each root axis:
+    for l, line in enumerate(polylines):
+        # We initialize the first dictionary within the main dictionary:
+        index_pointer_in_mtg[l] = {}
+        # If the root axis is not the main one of the root system:
+        if l > 0:
+            # We define the mother element of the current lateral axis according to the properties of the RSML file:
+            parent_axis_index = properties["parent-poly"][l]
+            parent_node_index = properties["parent-node"][l]
+            mother_element = g.node(index_pointer_in_mtg[parent_axis_index][parent_node_index])
+        # For each root element:
+        for i in range(1,len(line)):
+            # We define the x,y,z coordinates and the radius of the starting and ending point:
+            if flat_rsml:
+                x1, y1 = line[i-1]
+                z1 = 0
+                x2, y2 = line[i]
+                z2 = 0
+            else:
+                x1, y1, z1 = line[i-1]
+                x2, y2, z2 = line[i]
+
+            r1 = functions["diameter"][l][i - 1] / 2.
+            r2 = functions["diameter"][l][i]/2.
+
+            # The length of the root element is calculated from the x,y,z coordinates:
+            length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+            # We define the edge type ('<': adding a root element on the same axis, '+': adding a lateral root):
+            if i==1 and l > 0:
+                # If this is the first element of the axis, and this is not the collar point, this element is a ramification.
+                edgetype="+"
+            else:
+                edgetype="<"
+            # We define the label (Apex or Segment):
+            if i == len(line) - 1:
+                label="Apex"
+            else:
+                label="Segment"
+            # We finally add the new root element to the previously-defined mother element:
+            new_child = mother_element.add_child(edge_type=edgetype,
+                                                 label=label,
+                                                 x1=x1,
+                                                 x2=x2,
+                                                 y1=y1,
+                                                 y2=y2,
+                                                 z1=z1,
+                                                 z2=z2,
+                                                 radius1=r1,
+                                                 radius2=r2,
+                                                 radius=(r1+r2)/2,
+                                                 length=length)
+            # We record the vertex ID of the current root element:
+            vid = new_child.index()
+            # We add the vid to the dictionary:
+            index_pointer_in_mtg[l][i]=vid
+            # And we now consider current element as the mother element for the next iteration on this axis:
+            mother_element = new_child
+
+    return g
+
+
+def read_rsml(name: str):
+    """Parses the RSML file into:
+
+    Args:
+    name(str): file name of the rsml file
+
+    Returns:
+    (list, dict, dict):
+    (1) a (flat) list of polylines, with one polyline per root
+    (2) a dictionary of properties, one per root, adds "parent_poly" holding the index of the parent root in the list of polylines
+    (3) a dictionary of functions
+    """
+    root = ET.parse(name).getroot()
+    plant = root[1][0]
+    polylines = []
+    properties = {}
+    functions = {}
+    for elem in plant.iterfind('root'):
+        (polylines, properties, functions) = parse_rsml_(elem, polylines, properties, functions, -1)
+
+    return polylines, properties, functions
+
+
+def parse_rsml_(organ: ET, polylines: list, properties: dict, functions: dict, parent: int):
+    """ Recursivly parses the rsml file, used by read_rsml """
+    for poly in organ.iterfind('geometry'):  # only one
+        polyline = []
+        for p in poly[0]:  # 0 is the polyline
+            n = p.attrib
+            newnode = [float(n['x']), float(n['y']), float(n['z'])]
+            polyline.append(newnode)
+        polylines.append(polyline)
+        properties.setdefault("parent-poly", []).append(parent)
+
+    for prop in organ.iterfind('properties'):
+        for p in prop:  # i.e legnth, type, etc..
+            properties.setdefault(str(p.tag), []).append(float(p.attrib['value']))
+
+    for funcs in organ.iterfind('functions'):
+        for fun in funcs:
+            samples = []
+            for sample in fun.iterfind('sample'):
+                samples.append(float(sample.attrib['value']))
+            functions.setdefault(str(fun.attrib['name']), []).append(samples)
+
+    pi = len(polylines) - 1
+    for elem in organ.iterfind('root'):  # and all laterals
+        polylines, properties, functions = parse_rsml_(elem, polylines, properties, functions, pi)
+
+    return polylines, properties, functions
+
