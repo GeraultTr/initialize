@@ -143,6 +143,11 @@ def mtg_from_rsml(file_path: str):
     else:
         raise SyntaxError("Error in RSML file format, wrong number of coordinates")
 
+    if flat_rsml:
+        print("Opening 2D RSML...")
+    else: 
+        print("Opening 3D RSML...")
+
     # For each root axis:
     for l, line in enumerate(polylines):
         # We initialize the first dictionary within the main dictionary:
@@ -151,8 +156,14 @@ def mtg_from_rsml(file_path: str):
         if l > 0:
             # We define the mother element of the current lateral axis according to the properties of the RSML file:
             parent_axis_index = properties["parent-poly"][l]
-            parent_node_index = properties["parent-node"][l]
+            if "parent-node" in properties.keys():
+                parent_node_index = properties["parent-node"][l]
+            else:
+                insertion_distances = [np.sqrt((x-line[0][0])**2 + (y-line[0][1])**2 + (z-line[0][2])**2) for (x, y, z) in polylines[parent_axis_index]]
+                parent_node_index = insertion_distances.index(min(insertion_distances))
+
             mother_element = g.node(index_pointer_in_mtg[parent_axis_index][parent_node_index])
+
         # For each root element:
         for i in range(1,len(line)):
             # We define the x,y,z coordinates and the radius of the starting and ending point:
@@ -165,9 +176,22 @@ def mtg_from_rsml(file_path: str):
                 x1, y1, z1 = line[i-1]
                 x2, y2, z2 = line[i]
 
-            r1 = functions["diameter"][l][i - 1] / 2.
-            r2 = functions["diameter"][l][i]/2.
+            if not functions["diameter"][l][i - 1]:
+                functions["diameter"][l][i - 1] = functions["diameter"][l][i - 2]
 
+            if not functions["diameter"][l][i]:
+                functions["diameter"][l][i] = functions["diameter"][l][i - 1]
+
+            try:
+                r1 = functions["diameter"][l][i - 1] / 2.
+            except TypeError:
+                r1 = 1.
+            
+            try:
+                r2 = functions["diameter"][l][i] / 2.
+            except TypeError:
+                r2 = 1.
+                
             # The length of the root element is calculated from the x,y,z coordinates:
             length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
             # We define the edge type ('<': adding a root element on the same axis, '+': adding a lateral root):
@@ -240,13 +264,22 @@ def parse_rsml_(organ: ET, polylines: list, properties: dict, functions: dict, p
 
     for prop in organ.iterfind('properties'):
         for p in prop:  # i.e legnth, type, etc..
-            properties.setdefault(str(p.tag), []).append(float(p.attrib['value']))
+            try:
+                value = float(p.attrib['value'])
+            except ValueError:
+                value = p.attrib['value']
+            properties.setdefault(str(p.tag), []).append(value)
+
 
     for funcs in organ.iterfind('functions'):
         for fun in funcs:
             samples = []
             for sample in fun.iterfind('sample'):
-                samples.append(float(sample.attrib['value']))
+                try:
+                    value = float(sample.attrib['value'])
+                except ValueError:
+                    value = None
+                samples.append(value)
             functions.setdefault(str(fun.attrib['name']), []).append(samples)
 
     pi = len(polylines) - 1
