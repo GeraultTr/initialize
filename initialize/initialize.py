@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 from SALib.sample import saltelli
 from openalea.mtg import MTG
+from openalea.mtg.traversal import pre_order2
 import xml.etree.ElementTree as ET
 
 
@@ -111,30 +112,9 @@ def read_mtg(file_path):
     return g
     
 
-def mtg_from_rsml(file_path: str):
+def mtg_from_rsml(file_path: str, diameter_filter_threshold: float = 0.5):
 
     polylines, properties, functions = read_rsml(file_path)
-    # We create an empty MTG:
-    g = MTG()
-    # We define the first base element as an empty element:
-    id_segment = g.add_component(g.root, label='Segment',
-                                 x1=0,
-                                 x2=0,
-                                 y1=0,
-                                 y2=0,
-                                 z1=0,
-                                 z2=0,
-                                 radius1=0,
-                                 radius2=0,
-                                 radius=0,
-                                 length=0
-                                 )
-    base_segment = g.node(id_segment)
-
-    # We initialize an empty dictionary that will be used to register the vid of the mother elements:
-    index_pointer_in_mtg = {}
-    # We initialize the first mother element:
-    mother_element = base_segment
 
     if len(polylines[0][0]) == 2:
         flat_rsml = True
@@ -143,6 +123,38 @@ def mtg_from_rsml(file_path: str):
     else:
         raise SyntaxError("Error in RSML file format, wrong number of coordinates")
 
+    # We create an empty MTG:
+    g = MTG()
+
+    # We define the first base element as an empty element:
+    if flat_rsml:
+        x1, y1 = polylines[0][0]
+        z1 = 0
+    else:
+        x1, y1, z1 = polylines[0][0]
+
+    r1 = functions["diameter"][0][0] / 2.
+
+    id_segment = g.add_component(g.root, label='Segment',
+                                 x1=x1,
+                                 x2=x1,
+                                 y1=y1,
+                                 y2=y1,
+                                 z1=-z1,
+                                 z2=-z1,
+                                 radius1=r1,
+                                 radius2=r1,
+                                 radius=r1,
+                                 length=0,
+                                 order=1
+                                 )
+    base_segment = g.node(id_segment)
+
+    # We initialize an empty dictionary that will be used to register the vid of the mother elements:
+    index_pointer_in_mtg = {}
+    # We initialize the first mother element:
+    mother_element = base_segment
+
     if flat_rsml:
         print("Opening 2D RSML...")
     else: 
@@ -150,6 +162,8 @@ def mtg_from_rsml(file_path: str):
 
     # For each root axis:
     for l, line in enumerate(polylines):
+        mean_radius_axis = np.mean([k for k in functions["diameter"][l] if k]) / 2
+        
         # We initialize the first dictionary within the main dictionary:
         index_pointer_in_mtg[l] = {}
         # If the root axis is not the main one of the root system:
@@ -177,20 +191,21 @@ def mtg_from_rsml(file_path: str):
                 x2, y2, z2 = line[i]
 
             if not functions["diameter"][l][i - 1]:
-                functions["diameter"][l][i - 1] = functions["diameter"][l][i - 2]
+                r1 = mean_radius_axis
+            else:
+                r1 = functions["diameter"][l][i - 1] / 2
 
             if not functions["diameter"][l][i]:
-                functions["diameter"][l][i] = functions["diameter"][l][i - 1]
+                r2 = mean_radius_axis
+            else:
+                r2 = functions["diameter"][l][i] / 2
 
-            try:
-                r1 = functions["diameter"][l][i - 1] / 2.
-            except TypeError:
-                r1 = 1.
+            # Filtering cases where incoherent high or low diameters have been annotated
+            if r1 > mean_radius_axis * (1 + diameter_filter_threshold) or r1 < mean_radius_axis * (1 - diameter_filter_threshold):
+                r1 = mean_radius_axis
             
-            try:
-                r2 = functions["diameter"][l][i] / 2.
-            except TypeError:
-                r2 = 1.
+            if r2 > mean_radius_axis * (1 + diameter_filter_threshold) or r2 < mean_radius_axis* (1 - diameter_filter_threshold):
+                r2 = mean_radius_axis
                 
             # The length of the root element is calculated from the x,y,z coordinates:
             length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
@@ -198,8 +213,10 @@ def mtg_from_rsml(file_path: str):
             if i==1 and l > 0:
                 # If this is the first element of the axis, and this is not the collar point, this element is a ramification.
                 edgetype="+"
+                order = mother_element.order + 1
             else:
                 edgetype="<"
+                order = mother_element.order
             # We define the label (Apex or Segment):
             if i == len(line) - 1:
                 label="Apex"
@@ -212,18 +229,34 @@ def mtg_from_rsml(file_path: str):
                                                  x2=x2,
                                                  y1=y1,
                                                  y2=y2,
-                                                 z1=z1,
-                                                 z2=z2,
+                                                 z1=-z1,
+                                                 z2=-z2,
                                                  radius1=r1,
                                                  radius2=r2,
                                                  radius=(r1+r2)/2,
-                                                 length=length)
+                                                 length=length,
+                                                 order=order)
             # We record the vertex ID of the current root element:
             vid = new_child.index()
             # We add the vid to the dictionary:
             index_pointer_in_mtg[l][i]=vid
             # And we now consider current element as the mother element for the next iteration on this axis:
             mother_element = new_child
+    
+    # Finally, we filter diameters that might have remained too high because whole axis was wrong
+    print(list(set(g.property("order").values())))
+    per_order_mean_diameters = {order: np.mean([g.property("radius")[k] for k in g.vertices() if k != 0 and g.property("order")[k] == order]) for order in [1, 2, 3, 4, 5]}
+    print(per_order_mean_diameters)
+
+    root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
+    root = next(root_gen)
+
+    for vid in pre_order2(g, root):
+        n = g.node(vid)
+        parent = n.parent()
+        if parent:
+            if n.radius > parent.radius * (1 + diameter_filter_threshold):
+                n.radius = per_order_mean_diameters[n.order]
 
     return g
 
