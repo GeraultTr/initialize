@@ -112,7 +112,7 @@ def read_mtg(file_path):
     return g
     
 
-def mtg_from_rsml(file_path: str, diameter_filter_threshold: float = 0.5):
+def mtg_from_rsml(file_path: str, min_length=20, diameter_filter_threshold: float = 0.5):
 
     polylines, properties, functions = read_rsml(file_path)
 
@@ -136,6 +136,7 @@ def mtg_from_rsml(file_path: str, diameter_filter_threshold: float = 0.5):
     r1 = functions["diameter"][0][0] / 2.
 
     id_segment = g.add_component(g.root, label='Segment',
+                                 type="Base_of_the_root_system",
                                  x1=x1,
                                  x2=x1,
                                  y1=y1,
@@ -209,6 +210,7 @@ def mtg_from_rsml(file_path: str, diameter_filter_threshold: float = 0.5):
                 
             # The length of the root element is calculated from the x,y,z coordinates:
             length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+
             # We define the edge type ('<': adding a root element on the same axis, '+': adding a lateral root):
             if i==1 and l > 0:
                 # If this is the first element of the axis, and this is not the collar point, this element is a ramification.
@@ -222,31 +224,42 @@ def mtg_from_rsml(file_path: str, diameter_filter_threshold: float = 0.5):
                 label="Apex"
             else:
                 label="Segment"
-            # We finally add the new root element to the previously-defined mother element:
-            new_child = mother_element.add_child(edge_type=edgetype,
-                                                 label=label,
-                                                 x1=x1,
-                                                 x2=x2,
-                                                 y1=y1,
-                                                 y2=y2,
-                                                 z1=-z1,
-                                                 z2=-z2,
-                                                 radius1=r1,
-                                                 radius2=r2,
-                                                 radius=(r1+r2)/2,
-                                                 length=length,
-                                                 order=order)
-            # We record the vertex ID of the current root element:
-            vid = new_child.index()
-            # We add the vid to the dictionary:
-            index_pointer_in_mtg[l][i]=vid
-            # And we now consider current element as the mother element for the next iteration on this axis:
-            mother_element = new_child
+
+            if mother_element.length < min_length and edgetype == "<":
+                mother_element.x2 = x2
+                mother_element.y2 = y2
+                mother_element.z2 = -z2
+                mother_element.radius = (mother_element.radius + r2) / 2
+                mother_element.r2 = r2
+                mother_element.length = np.sqrt(  (mother_element.x2-mother_element.x1)**2 
+                                                + (mother_element.y2-mother_element.y1)**2 
+                                                + (mother_element.z2-mother_element.z1)**2)
+                index_pointer_in_mtg[l][i]=mother_element.index()
+            else:
+                # We finally add the new root element to the previously-defined mother element:
+                new_child = mother_element.add_child(edge_type=edgetype,
+                                                    label=label,
+                                                    type="Normal_root_after_emergence",
+                                                    x1=x1,
+                                                    x2=x2,
+                                                    y1=y1,
+                                                    y2=y2,
+                                                    z1=-z1,
+                                                    z2=-z2,
+                                                    radius1=r1,
+                                                    radius2=r2,
+                                                    radius=(r1+r2)/2,
+                                                    length=length,
+                                                    order=order)
+                # We record the vertex ID of the current root element:
+                vid = new_child.index()
+                # We add the vid to the dictionary:
+                index_pointer_in_mtg[l][i]=vid
+                # And we now consider current element as the mother element for the next iteration on this axis:
+                mother_element = new_child
     
     # Finally, we filter diameters that might have remained too high because whole axis was wrong
-    print(list(set(g.property("order").values())))
     per_order_mean_diameters = {order: np.mean([g.property("radius")[k] for k in g.vertices() if k != 0 and g.property("order")[k] == order]) for order in [1, 2, 3, 4, 5]}
-    print(per_order_mean_diameters)
 
     root_gen = g.component_roots_at_scale_iter(g.root, scale=1)
     root = next(root_gen)
