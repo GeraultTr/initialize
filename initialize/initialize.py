@@ -112,7 +112,10 @@ def read_mtg(file_path):
     return g
     
 
-def mtg_from_rsml(file_path: str, min_length=20, diameter_filter_threshold: float = 0.5):
+def mtg_from_rsml(file_path: str, min_length=5e-3, diameter_filter_threshold: float = 0.5):
+    """
+    param: min_lengt in m
+    """
 
     polylines, properties, functions = read_rsml(file_path)
 
@@ -209,7 +212,7 @@ def mtg_from_rsml(file_path: str, min_length=20, diameter_filter_threshold: floa
                 r2 = mean_radius_axis
                 
             # The length of the root element is calculated from the x,y,z coordinates:
-            length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
+            length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2) / 1e4
 
             # We define the edge type ('<': adding a root element on the same axis, '+': adding a lateral root):
             if i==1 and l > 0:
@@ -233,7 +236,10 @@ def mtg_from_rsml(file_path: str, min_length=20, diameter_filter_threshold: floa
                 mother_element.r2 = r2
                 mother_element.length = np.sqrt(  (mother_element.x2-mother_element.x1)**2 
                                                 + (mother_element.y2-mother_element.y1)**2 
-                                                + (mother_element.z2-mother_element.z1)**2)
+                                                + (mother_element.z2-mother_element.z1)**2) / 1e4
+                if label == "Apex":
+                    mother_element.label = "Apex"
+                
                 index_pointer_in_mtg[l][i]=mother_element.index()
             else:
                 # We finally add the new root element to the previously-defined mother element:
