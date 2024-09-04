@@ -112,12 +112,19 @@ def read_mtg(file_path):
     return g
     
 
-def mtg_from_rsml(file_path: str, min_length=5e-3, diameter_filter_threshold: float = 0.5):
+def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_length=4e-3, diameter_filter_threshold: float = 0.5):
     """
     param: min_lengt in m
     """
 
     polylines, properties, functions = read_rsml(file_path)
+
+    for f, v in functions.items():
+        functions[f] = [[value * length_unit_conversion_factor if value else None for value in l ] for l in v]
+    
+    origin = polylines[0][0]
+
+    polylines = [[[(i[j] - origin[j]) * length_unit_conversion_factor for j in range(len(origin))] for i in k] for k in polylines]
 
     if len(polylines[0][0]) == 2:
         flat_rsml = True
@@ -163,7 +170,7 @@ def mtg_from_rsml(file_path: str, min_length=5e-3, diameter_filter_threshold: fl
         print("Opening 2D RSML...")
     else: 
         print("Opening 3D RSML...")
-
+    
     # For each root axis:
     for l, line in enumerate(polylines):
         mean_radius_axis = np.mean([k for k in functions["diameter"][l] if k]) / 2
@@ -211,8 +218,10 @@ def mtg_from_rsml(file_path: str, min_length=5e-3, diameter_filter_threshold: fl
             if r2 > mean_radius_axis * (1 + diameter_filter_threshold) or r2 < mean_radius_axis* (1 - diameter_filter_threshold):
                 r2 = mean_radius_axis
                 
+            
+
             # The length of the root element is calculated from the x,y,z coordinates:
-            length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2) / 1e4
+            length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
 
             # We define the edge type ('<': adding a root element on the same axis, '+': adding a lateral root):
             if i==1 and l > 0:
@@ -236,7 +245,7 @@ def mtg_from_rsml(file_path: str, min_length=5e-3, diameter_filter_threshold: fl
                 mother_element.r2 = r2
                 mother_element.length = np.sqrt(  (mother_element.x2-mother_element.x1)**2 
                                                 + (mother_element.y2-mother_element.y1)**2 
-                                                + (mother_element.z2-mother_element.z1)**2) / 1e4
+                                                + (mother_element.z2-mother_element.z1)**2)
                 if label == "Apex":
                     mother_element.label = "Apex"
                 
