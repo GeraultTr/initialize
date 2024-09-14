@@ -31,7 +31,7 @@ class MakeScenarios:
                 table_extract = instructions_parameters[instructions_parameters["Dedicated_to"] == model]
                 label = list(set(table_extract["Organ_label"].values))[0]
                 # This accounts for the case where passed parameters to every models have to be encapsulated in a Organ-labelled dict
-                if not np.isnan(label):
+                if label is not None:
                     subdict_of_parameters[name][model].update(
                         {label: dict(zip(table_extract[name].index.values, table_extract[name].replace({'True': True, 'False': False, 'None': None})))}
                     )
