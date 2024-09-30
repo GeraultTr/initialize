@@ -163,6 +163,8 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
 
     # We initialize an empty dictionary that will be used to register the vid of the mother elements:
     index_pointer_in_mtg = {}
+    index_pointer_in_mtg[0] = {}
+    index_pointer_in_mtg[0][0] = base_segment.index()
     # We initialize the first mother element:
     mother_element = base_segment
 
@@ -175,10 +177,11 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
     for l, line in enumerate(polylines):
         mean_radius_axis = np.mean([k for k in functions["diameter"][l] if k]) / 2
         
-        # We initialize the first dictionary within the main dictionary:
-        index_pointer_in_mtg[l] = {}
         # If the root axis is not the main one of the root system:
         if l > 0:
+            # We initialize the first dictionary within the main dictionary:
+            index_pointer_in_mtg[l] = {}
+
             # We define the mother element of the current lateral axis according to the properties of the RSML file:
             parent_axis_index = properties["parent-poly"][l]
             if "parent-node" in properties.keys():
@@ -218,8 +221,6 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
             if r2 > mean_radius_axis * (1 + diameter_filter_threshold) or r2 < mean_radius_axis* (1 - diameter_filter_threshold):
                 r2 = mean_radius_axis
                 
-            
-
             # The length of the root element is calculated from the x,y,z coordinates:
             length=np.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2)
 
@@ -285,7 +286,7 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
         if parent:
             if n.radius > parent.radius * (1 + diameter_filter_threshold):
                 n.radius = per_order_mean_diameters[n.order]
-
+                
     return g
 
 
