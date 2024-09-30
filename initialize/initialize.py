@@ -142,8 +142,11 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
         z1 = 0
     else:
         x1, y1, z1 = polylines[0][0]
-
-    r1 = functions["diameter"][0][0] / 2.
+    
+    if not functions["diameter"][0][0]:
+        r1 = 0.002
+    else:
+        r1 = functions["diameter"][0][0] / 2.
 
     id_segment = g.add_component(g.root, label='Segment',
                                  type="Base_of_the_root_system",
@@ -178,7 +181,7 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
         mean_radius_axis = np.mean([k for k in functions["diameter"][l] if k]) / 2
         
         # If the root axis is not the main one of the root system:
-        if l > 0:
+        if l > 0 and len(line) > 0:
             # We initialize the first dictionary within the main dictionary:
             index_pointer_in_mtg[l] = {}
 
@@ -286,7 +289,7 @@ def mtg_from_rsml(file_path: str, length_unit_conversion_factor = 54.0e-6, min_l
         if parent:
             if n.radius > parent.radius * (1 + diameter_filter_threshold):
                 n.radius = per_order_mean_diameters[n.order]
-                
+
     return g
 
 
