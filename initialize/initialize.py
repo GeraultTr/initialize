@@ -108,6 +108,9 @@ def read_mtg(file_path):
             g = pickle.load(f)
     elif file_path.endswith(".rsml"):
         g = mtg_from_rsml(file_path)
+    
+    else:
+        g = None
 
     return g
     
